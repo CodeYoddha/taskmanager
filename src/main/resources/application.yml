@@ -1,0 +1,56 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: taskmanager
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/taskmanager
+    username: taskmanager
+    password: taskmanager
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  mail:
+    host: localhost
+    port: 1025
+    username:
+    password:
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+app:
+  jwt:
+    # Change this in production! Use an env variable instead.
+    secret: "change-this-to-a-long-random-secret-key-at-least-256-bits-please"
+    access-token-expiration-ms: 900000        # 15 minutes
+    refresh-token-expiration-ms: 604800000    # 7 days
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.taskmanager: DEBUG
+    org.springframework.security: INFO
