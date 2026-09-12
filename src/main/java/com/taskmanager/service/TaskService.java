@@ -2,6 +2,7 @@ package com.taskmanager.service;
 
 import com.taskmanager.dto.TaskDtos.CreateTaskRequest;
 import com.taskmanager.dto.TaskDtos.TaskResponse;
+import com.taskmanager.dto.TaskEvent;
 import com.taskmanager.entity.Project;
 import com.taskmanager.entity.Task;
 import com.taskmanager.entity.TaskStatus;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,6 +24,8 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectService projectService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final EmailService emailService;
 
     public Task createTask(CreateTaskRequest request, String creatorEmail) {
         Project project = projectService.getProjectOrThrow(request.getProjectId());
@@ -43,7 +47,15 @@ public class TaskService {
                 .status(TaskStatus.TODO)
                 .build();
 
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+
+        broadcastEvent(saved, "CREATED");
+
+        if (assignee != null) {
+            emailService.sendTaskAssignedEmail(assignee.getEmail(), saved.getTitle(), project.getName());
+        }
+
+        return saved;
     }
 
     public Page<Task> getTasksForProject(Long projectId, TaskStatus status, Pageable pageable) {
@@ -56,7 +68,25 @@ public class TaskService {
     public Task updateStatus(Long taskId, TaskStatus newStatus) {
         Task task = getTaskOrThrow(taskId);
         task.setStatus(newStatus);
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+
+        broadcastEvent(saved, "STATUS_CHANGED");
+
+        return saved;
+    }
+
+    private void broadcastEvent(Task task, String eventType) {
+        TaskEvent event = TaskEvent.builder()
+                .eventType(eventType)
+                .taskId(task.getId())
+                .title(task.getTitle())
+                .status(task.getStatus())
+                .projectId(task.getProject().getId())
+                .assigneeName(task.getAssignee() != null ? task.getAssignee().getFullName() : null)
+                .build();
+
+        // Every client subscribed to this project's topic gets this instantly
+        messagingTemplate.convertAndSend("/topic/project/" + task.getProject().getId(), event);
     }
 
     public Task getTaskOrThrow(Long id) {
@@ -65,6 +95,8 @@ public class TaskService {
     }
 
     public void deleteTask(Long id) {
+        Task task = getTaskOrThrow(id);
+        broadcastEvent(task, "DELETED");
         taskRepository.deleteById(id);
     }
 
