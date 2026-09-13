@@ -20,13 +20,22 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-    data: 
-    redis: 
-      host: ${REDIS_HOST:neat-silkworm-136889.upstash.io} 
-      port: ${REDIS_PORT:6379} 
-      password: ${REDIS_PASSWORD} 
-      ssl: 
-        enabled: ${REDIS_SSL:true} 
+  data:
+    redis:
+      host: ${REDIS_HOST:neat-silkworm-136889.upstash.io}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL:true}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    ssl:
+      enabled: ${RABBITMQ_SSL:false}
 
   mail:
     host: localhost

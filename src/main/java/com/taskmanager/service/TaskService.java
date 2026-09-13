@@ -1,5 +1,6 @@
 package com.taskmanager.service;
 
+import com.taskmanager.dto.TaskAssignedEvent;
 import com.taskmanager.dto.TaskDtos.CreateTaskRequest;
 import com.taskmanager.dto.TaskDtos.TaskResponse;
 import com.taskmanager.dto.TaskEvent;
@@ -25,7 +26,7 @@ public class TaskService {
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final SimpMessagingTemplate messagingTemplate;
-    private final EmailService emailService;
+    private final TaskEventPublisher taskEventPublisher;
 
     public Task createTask(CreateTaskRequest request, String creatorEmail) {
         Project project = projectService.getProjectOrThrow(request.getProjectId());
@@ -52,7 +53,13 @@ public class TaskService {
         broadcastEvent(saved, "CREATED");
 
         if (assignee != null) {
-            emailService.sendTaskAssignedEmail(assignee.getEmail(), saved.getTitle(), project.getName());
+            taskEventPublisher.publishTaskAssigned(
+                    TaskAssignedEvent.builder()
+                            .assigneeEmail(assignee.getEmail())
+                            .taskTitle(saved.getTitle())
+                            .projectName(project.getName())
+                            .build()
+            );
         }
 
         return saved;
