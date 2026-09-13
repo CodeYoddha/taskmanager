@@ -6,6 +6,8 @@ import com.taskmanager.exception.ApiException;
 import com.taskmanager.repository.ProjectRepository;
 import com.taskmanager.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,7 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
 
+    @CacheEvict(value = "projects", allEntries = true) // a new project could show up in anyone's list
     public Project createProject(String name, String description, String ownerEmail) {
         User owner = getUserByEmail(ownerEmail);
 
@@ -41,6 +44,7 @@ public class ProjectService {
         ).distinct().collect(Collectors.toList());
     }
 
+    @CacheEvict(value = "project", key = "#projectId")
     public Project addMember(Long projectId, Long userId, String requesterEmail) {
         Project project = getProjectOrThrow(projectId);
         assertIsOwner(project, requesterEmail);
@@ -52,6 +56,7 @@ public class ProjectService {
         return projectRepository.save(project);
     }
 
+    @Cacheable(value = "project", key = "#id")
     public Project getProjectOrThrow(Long id) {
         return projectRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Project not found"));

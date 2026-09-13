@@ -20,10 +20,13 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  data:
-    redis:
-      host: localhost
-      port: 6379
+    data: 
+    redis: 
+      host: ${REDIS_HOST:neat-silkworm-136889.upstash.io} 
+      port: ${REDIS_PORT:6379} 
+      password: ${REDIS_PASSWORD} 
+      ssl: 
+        enabled: ${REDIS_SSL:true} 
 
   mail:
     host: localhost
