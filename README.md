@@ -1,116 +1,127 @@
 # TaskManager — Real-Time Collaborative Task Management System
 
-A Jira/Trello-style backend built with Java + Spring Boot, showcasing JWT auth,
-role-based access control, real-time updates, caching, and async messaging.
+A Jira/Trello-style backend built with Java + Spring Boot, with a lightweight React
+frontend to demonstrate it visually. Showcases JWT auth, role-based access control,
+real-time updates over WebSockets, Redis caching, and event-driven messaging via RabbitMQ.
 
-## Phase 1 (this scaffold) — Core REST API ✅
-- Spring Boot 3.3, Java 17
-- JWT-based authentication (register/login) with Spring Security
-- Role-based access (ADMIN / MANAGER / MEMBER)
-- Projects: create, list, add members
-- Tasks: create, list (paginated + filterable by status), update status, delete
-- PostgreSQL + Spring Data JPA
-- Global exception handling with clean JSON error responses
-- Swagger/OpenAPI docs at `/swagger-ui.html`
+**Frontend repo:** see `taskmanager-frontend` (separate project, run alongside this one)
+
+## What's built
+
+- **Auth** — JWT-based register/login with Spring Security, roles (ADMIN / MANAGER / MEMBER)
+- **Projects & Tasks** — full CRUD, paginated + filterable task lists, project membership
+- **Real-time updates** — WebSocket (STOMP) broadcasts on every task create/status-change/delete,
+  so every connected client sees changes instantly with no refresh
+- **Async messaging** — task assignment publishes an event to RabbitMQ; a separate consumer
+  sends the notification email, decoupling the request from that side effect
+- **Caching** — Redis-backed caching on project lookups via Spring's `@Cacheable`/`@CacheEvict`
+- **Testing & CI** — JUnit + Mockito unit tests for the service layer, running automatically
+  on every push via GitHub Actions
+- **API docs** — Swagger/OpenAPI UI with JWT bearer auth support built in
+
+## Architecture at a glance
+
+```
+Client (React)
+   │
+   ├── REST API ──────────► Spring Boot ──────► PostgreSQL (users, projects, tasks)
+   │                             │
+   │                             ├──► Redis (cache: project lookups)
+   │                             │
+   │                             └──► RabbitMQ ──► Email consumer ──► SMTP
+   │
+   └── WebSocket (STOMP) ◄── broadcasts task events live
+```
+
+## Tech stack
+Java 17 · Spring Boot 3 · Spring Security · Spring Data JPA · PostgreSQL · Redis ·
+RabbitMQ · WebSockets (STOMP/SockJS) · JUnit/Mockito · GitHub Actions · React (frontend)
 
 ## How to run locally
 
 ### 1. Prerequisites
 - JDK 17+
-- Maven (or use the wrapper once you generate one — see note below)
-- Docker Desktop (for Postgres/Redis/Mailhog)
+- Maven (or use VS Code's bundled Maven via the Java extension)
+- A PostgreSQL database (local install, or a free cloud instance like [Neon](https://neon.tech))
+- A Redis instance (free tier on [Upstash](https://upstash.com) works well)
+- A RabbitMQ instance (free tier on [CloudAMQP](https://cloudamqp.com) works well)
 
-### 2. Start supporting services
+### 2. Configure secrets
+Copy the template and fill in your real values:
 ```bash
-docker compose up -d
+cp .env.example .env
 ```
-This starts Postgres (5432), Redis (6379), and MailHog (SMTP on 1025, web UI on 8025).
+Then edit `.env` with your actual Postgres/Redis/RabbitMQ/JWT values. `.env` is
+gitignored and never committed — only `.env.example` (with blank values) is tracked,
+so the repo never contains real credentials. **The app will fail to start if any
+required variable is missing** — this is intentional, so a misconfigured deployment
+fails loudly instead of silently falling back to something insecure.
+
+In VS Code, wire `.env` up via `.vscode/launch.json`'s `envFile` property so `Run and
+Debug` picks it up automatically.
 
 ### 3. Run the app
-Open the folder in VS Code with the **Extension Pack for Java** and **Spring Boot Extension Pack** installed, then:
-```bash
-mvn spring-boot:run
-```
-Or just click "Run" above the `main` method in `TaskmanagerApplication.java`.
+Open the project in VS Code with the **Extension Pack for Java** and **Spring Boot
+Extension Pack** installed, then use **Run and Debug** (not the inline Run button, so
+the `.env` file is actually loaded).
 
-The API will be live at `http://localhost:8080`. Swagger UI: `http://localhost:8080/swagger-ui.html`
+The API is live at `http://localhost:8080`. Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-### 4. Try it out
+### 4. Run the frontend (optional, but recommended)
+See the `taskmanager-frontend` project's own README. Once both are running, open two
+browser tabs on the same project board and watch task changes sync live between them.
+
+### 5. Try the API directly
 ```bash
 # Register
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"fullName":"Ada Lovelace","email":"ada@example.com","password":"password123"}'
 
-# Login (grab the accessToken from the response)
+# Login
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"ada@example.com","password":"password123"}'
 
-# Create a project (use the accessToken)
+# Create a project (use the accessToken from above)
 curl -X POST http://localhost:8080/api/projects \
   -H "Authorization: Bearer <accessToken>" \
   -H "Content-Type: application/json" \
   -d '{"name":"My First Project","description":"Testing it out"}'
 ```
 
-## Pushing to GitHub (via GitHub Desktop)
-1. Open GitHub Desktop → **File > Add Local Repository** → select this `taskmanager` folder.
-2. It'll detect it's not yet a git repo and offer to **create a repository** — click that.
-3. Write a commit message like "Phase 1: auth, projects, tasks REST API" → **Commit to main**.
-4. Click **Publish repository** (top bar) → choose public/private → Publish.
+## Running tests
+```bash
+mvn test
+```
+Tests use Mockito to mock the database, Redis, and RabbitMQ — no live infrastructure
+needed to run them. The same command runs automatically in CI on every push (see
+`.github/workflows/ci.yml`).
 
----
-
-## Roadmap (build this over the next few weeks)
-
-### Phase 2 — Real-time updates (WebSockets)
-- Add a `WebSocketConfig` using STOMP over SockJS at `/ws`
-- Broadcast task-status-change events to a topic like `/topic/project/{id}`
-- Frontend subscribes and updates the Kanban board instantly when others move cards
-- Send an email (via MailHog locally) when a task is assigned to someone
-
-### Phase 3 — Caching & scaling
-- Cache `GET /api/projects/{id}` and task lists in Redis (`@Cacheable`)
-- Evict cache on task/project updates (`@CacheEvict`)
-- Use Redis pub/sub so WebSocket broadcasts work across multiple app instances
-
-### Phase 4 — Async messaging (this is a big resume differentiator)
-- Add RabbitMQ (or Kafka if you want that specific keyword)
-- Instead of sending emails synchronously, publish a `TaskAssignedEvent` to a queue
-- A separate `@RabbitListener` consumer sends the email — decouples the request from the side effect
-
-### Phase 5 — Testing & CI/CD
-- JUnit + Mockito unit tests for services
-- `@SpringBootTest` + Testcontainers (or H2) integration tests for controllers
-- GitHub Actions workflow: run `mvn test` on every push, build a Docker image on merge to main
-
-### Phase 6 — Deploy it
-- Deploy to Render, Railway, or AWS Elastic Beanstalk (free tiers available)
-- Use a managed Postgres (Supabase/Neon free tier) instead of local Docker for production
-- Add the live URL + a short demo GIF to your resume/GitHub README
-
-### Optional stretch goals
-- File attachments on tasks (upload to S3 or local disk)
-- Activity log / audit trail per task
-- Full microservices split (Auth service, Task service, Notification service) if you want that keyword specifically — only worth it once Phases 1–5 are solid
-
----
+## What's next
+- **Deployment** — host on Render/Railway with managed Postgres, and put the live URL here
+- **File attachments** — upload to S3 or local disk
+- **Activity log** — audit trail per task
+- **Microservices split** — separate Auth/Task/Notification services, if pursuing that
+  specific architecture pattern
 
 ## Project structure
 ```
 src/main/java/com/taskmanager/
-├── config/          # Security config, CORS
-├── controller/       # REST endpoints
-├── dto/              # Request/response objects
-├── entity/            # JPA entities
-├── exception/         # Custom exceptions + global handler
-├── repository/         # Spring Data JPA repositories
-├── security/           # JWT filter, JWT service, UserDetailsService
-└── service/            # Business logic
+├── config/       # Security, CORS, WebSocket, Redis, RabbitMQ, OpenAPI config
+├── controller/   # REST endpoints
+├── dto/          # Request/response objects, WebSocket + RabbitMQ event payloads
+├── entity/       # JPA entities
+├── exception/    # Custom exceptions + global handler
+├── repository/   # Spring Data JPA repositories
+├── security/     # JWT filter, JWT service, UserDetailsService
+└── service/      # Business logic, caching, event publishing/consuming
+src/test/java/com/taskmanager/
+└── service/      # Unit tests (Mockito)
 ```
 
-## Resume bullet (update as you complete phases)
+## Resume bullet
 > Built a real-time collaborative task management platform using Java, Spring Boot,
-> and WebSockets, supporting JWT-based role authentication, Redis caching, and
-> async email notifications via RabbitMQ; deployed on AWS with CI/CD via GitHub Actions.
+> and WebSockets, with JWT-based role authentication, Redis caching, and event-driven
+> email notifications via RabbitMQ; covered by unit tests running in a GitHub Actions
+> CI pipeline, with a React frontend demonstrating live cross-client updates.
